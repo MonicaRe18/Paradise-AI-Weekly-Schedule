@@ -1,0 +1,37 @@
+{
+  "entities": {
+    "schedules": {
+      "title": "Schedules",
+      "description": "Live team schedule data",
+      "type": "object",
+      "properties": {
+        "header": { "type": "object" },
+        "days": { "type": "array" },
+        "teamMembers": { "type": "array" },
+        "footerNotes": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["header", "days", "teamMembers", "footerNotes"]
+    },
+    "app_config": {
+      "title": "App Configurations",
+      "description": "App passwords and security settings",
+      "type": "object",
+      "properties": {
+        "passwords": { "type": "object" }
+      }
+    },
+    "history": {
+      "title": "Schedule History",
+      "description": "Archived week schedules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "savedAt": { "type": "string" },
+        "data": { "type": "object" }
+      },
+      "required": ["id", "title", "savedAt", "data"]
+    }
+  }
+}

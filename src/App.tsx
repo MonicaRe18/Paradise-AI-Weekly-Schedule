@@ -17,17 +17,17 @@ import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { PdfReportPrintView } from './components/PdfReportPrintView';
 import { generateSundayToThursdayDays } from './utils/dateUtils';
 import {
-  fetchScheduleFromApi,
-  saveScheduleToApi,
-  fetchHistoryFromApi,
-  saveHistoryToApi,
-  deleteHistoryFromApi,
-  resetScheduleFromApi,
-  checkSqliteHealth,
-  fetchPasswordsFromApi,
-  savePasswordsToApi,
-} from './services/api';
-import { Database, CheckCircle2, RefreshCw } from 'lucide-react';
+  subscribeToSchedule,
+  saveScheduleToFirestore,
+  subscribeToPasswords,
+  savePasswordsToFirestore,
+  subscribeToHistory,
+  saveArchivedWeekToFirestore,
+  deleteArchivedWeekFromFirestore,
+  resetScheduleInFirestore,
+  DEFAULT_PASSWORDS,
+} from './services/firestoreService';
+import { Database, CheckCircle2, Zap } from 'lucide-react';
 
 const STORAGE_KEY = 'paradise_weekly_team_schedule_v1';
 const HISTORY_STORAGE_KEY = 'paradise_schedule_history_v1';
@@ -35,7 +35,7 @@ const SESSION_STORAGE_KEY = 'paradise_schedule_user_session_v1';
 const PASSWORDS_STORAGE_KEY = 'paradise_schedule_user_passwords_v1';
 
 export default function App() {
-  const [isSqliteActive, setIsSqliteActive] = useState(false);
+  const [isFirestoreConnected, setIsFirestoreConnected] = useState(true);
 
   // User Passwords State
   const [passwords, setPasswords] = useState<Record<string, string>>(() => {
@@ -47,7 +47,7 @@ export default function App() {
     } catch (e) {
       console.error('Failed to parse passwords from storage', e);
     }
-    return { admin: 'pass@word1' };
+    return DEFAULT_PASSWORDS;
   });
 
   const handleSavePassword = (targetKey: string, newPass: string) => {
@@ -172,228 +172,72 @@ export default function App() {
     isModalOpenRef.current = isAnyModalOpen;
   }, [isAnyModalOpen]);
 
-  // Sync helpers that save to SQLite backend API & localStorage on explicit user actions
+  // Sync helpers that save directly to Cloud Firestore & localStorage
   const updateAndSyncSchedule = (updater: ScheduleData | ((prev: ScheduleData) => ScheduleData)) => {
-    isSavingRef.current = true;
-    lastSaveTimeRef.current = Date.now();
-
     setScheduleData((prev) => {
       const nextData = typeof updater === 'function' ? updater(prev) : updater;
       scheduleDataRef.current = nextData;
+      saveScheduleToFirestore(nextData);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
       } catch (e) {
         console.error('Failed to set localStorage schedule', e);
-      }
-      if (isSqliteActive) {
-        saveScheduleToApi(nextData).then((saved) => {
-          if (saved) {
-            scheduleDataRef.current = saved;
-            setScheduleData(saved);
-          }
-          setTimeout(() => {
-            isSavingRef.current = false;
-          }, 1200);
-        }).catch(() => {
-          isSavingRef.current = false;
-        });
-      } else {
-        isSavingRef.current = false;
       }
       return nextData;
     });
   };
 
   const updateAndSyncPasswords = (updater: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => {
-    isSavingRef.current = true;
-    lastSaveTimeRef.current = Date.now();
-
     setPasswords((prev) => {
       const nextData = typeof updater === 'function' ? updater(prev) : updater;
       passwordsRef.current = nextData;
+      savePasswordsToFirestore(nextData);
       try {
         localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(nextData));
       } catch (e) {
         console.error('Failed to set localStorage passwords', e);
       }
-      if (isSqliteActive) {
-        savePasswordsToApi(nextData).then((saved) => {
-          if (saved) {
-            passwordsRef.current = saved;
-            setPasswords(saved);
-          }
-          setTimeout(() => {
-            isSavingRef.current = false;
-          }, 1200);
-        }).catch(() => {
-          isSavingRef.current = false;
-        });
-      } else {
-        isSavingRef.current = false;
-      }
       return nextData;
     });
   };
 
-  // Manual Force Sync with Server API
-  const handleForceSync = async () => {
-    setIsManualSyncing(true);
-    try {
-      const healthy = await checkSqliteHealth();
-      setIsSqliteActive(healthy);
-      if (healthy) {
-        const [apiData, apiHistory, apiPasswords] = await Promise.all([
-          fetchScheduleFromApi(),
-          fetchHistoryFromApi(),
-          fetchPasswordsFromApi(),
-        ]);
-
-        if (apiData) {
-          scheduleDataRef.current = apiData;
-          setScheduleData(apiData);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(apiData));
-        }
-        if (apiHistory) {
-          setArchivedWeeks(apiHistory);
-          localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(apiHistory));
-        }
-        if (apiPasswords) {
-          passwordsRef.current = apiPasswords;
-          setPasswords(apiPasswords);
-          localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(apiPasswords));
-        }
-      }
-    } catch (e) {
-      console.error('Manual sync failed:', e);
-    } finally {
-      setIsManualSyncing(false);
-    }
-  };
-
-  // Fetch initial data from SQLite server API on boot
+  // Real-time Cloud Firestore Subscriptions for Live Sync Across Devices
   useEffect(() => {
-    async function initData() {
-      const isHealthy = await checkSqliteHealth();
-      setIsSqliteActive(isHealthy);
-
-      if (isHealthy) {
-        const [apiData, apiHistory, apiPasswords] = await Promise.all([
-          fetchScheduleFromApi(),
-          fetchHistoryFromApi(),
-          fetchPasswordsFromApi(),
-        ]);
-
-        if (apiData) {
-          scheduleDataRef.current = apiData;
-          setScheduleData(apiData);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(apiData));
-          } catch (e) {
-            console.error('Failed to set localStorage schedule', e);
-          }
-        }
-
-        if (apiHistory) {
-          setArchivedWeeks(apiHistory);
-          try {
-            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(apiHistory));
-          } catch (e) {
-            console.error('Failed to set localStorage history', e);
-          }
-        }
-
-        if (apiPasswords) {
-          passwordsRef.current = apiPasswords;
-          setPasswords(apiPasswords);
-          try {
-            localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(apiPasswords));
-          } catch (e) {
-            console.error('Failed to set localStorage passwords', e);
-          }
-        }
+    const unsubSchedule = subscribeToSchedule((remoteSchedule) => {
+      setScheduleData(remoteSchedule);
+      scheduleDataRef.current = remoteSchedule;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteSchedule));
+      } catch (e) {
+        console.error('Error caching schedule locally', e);
       }
-      isInitialLoadedRef.current = true;
-    }
-    initData();
+    });
 
-    // Re-fetch latest server data when tab gets focused
-    const handleFocus = () => {
-      checkSqliteHealth().then((isHealthy) => {
-        if (isHealthy) {
-          fetchScheduleFromApi().then((data) => {
-            if (data) {
-              scheduleDataRef.current = data;
-              setScheduleData(data);
-            }
-          });
-          fetchPasswordsFromApi().then((p) => {
-            if (p) {
-              passwordsRef.current = p;
-              setPasswords(p);
-            }
-          });
-        }
-      });
+    const unsubPasswords = subscribeToPasswords((remotePasswords) => {
+      setPasswords(remotePasswords);
+      passwordsRef.current = remotePasswords;
+      try {
+        localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(remotePasswords));
+      } catch (e) {
+        console.error('Error caching passwords locally', e);
+      }
+    });
+
+    const unsubHistory = subscribeToHistory((remoteHistory) => {
+      setArchivedWeeks(remoteHistory);
+      try {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(remoteHistory));
+      } catch (e) {
+        console.error('Error caching history locally', e);
+      }
+    });
+
+    return () => {
+      unsubSchedule();
+      unsubPasswords();
+      unsubHistory();
     };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
   }, []);
-
-  // Background Live Sync Polling (Every 2.5s) to reflect updates across devices & accounts immediately
-  useEffect(() => {
-    const pollInterval = setInterval(async () => {
-      // Don't poll if any modal is actively open or if user just saved (< 3s ago)
-      if (isModalOpenRef.current || isSavingRef.current || Date.now() - lastSaveTimeRef.current < 3000) {
-        return;
-      }
-
-      const healthy = await checkSqliteHealth();
-      setIsSqliteActive(healthy);
-      if (!healthy) return;
-
-      const remoteData = await fetchScheduleFromApi();
-      if (remoteData && !isSavingRef.current && Date.now() - lastSaveTimeRef.current >= 3000) {
-        const remoteStr = JSON.stringify(remoteData);
-        const localStr = JSON.stringify(scheduleDataRef.current);
-        if (remoteStr !== localStr) {
-          scheduleDataRef.current = remoteData;
-          setScheduleData(remoteData);
-          try {
-            localStorage.setItem(STORAGE_KEY, remoteStr);
-          } catch (e) {
-            console.error('Failed to update localStorage from poll', e);
-          }
-        }
-      }
-
-      const remotePasswords = await fetchPasswordsFromApi();
-      if (remotePasswords && !isSavingRef.current) {
-        const remotePassStr = JSON.stringify(remotePasswords);
-        const localPassStr = JSON.stringify(passwordsRef.current);
-        if (remotePassStr !== localPassStr) {
-          passwordsRef.current = remotePasswords;
-          setPasswords(remotePasswords);
-          try {
-            localStorage.setItem(PASSWORDS_STORAGE_KEY, remotePassStr);
-          } catch (e) {
-            console.error('Failed to update passwords from poll', e);
-          }
-        }
-      }
-    }, 2500);
-
-    return () => clearInterval(pollInterval);
-  }, []);
-
-  // Sync history archive to SQLite server API and localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(archivedWeeks));
-    } catch (e) {
-      console.error('Failed to save history archive', e);
-    }
-  }, [archivedWeeks]);
 
   // Compute overall task counts
   let totalTaskCount = 0;
@@ -668,11 +512,8 @@ export default function App() {
       data: JSON.parse(JSON.stringify(scheduleData)),
     };
 
-    setArchivedWeeks((prev) => [newArchiveItem, ...prev]);
-    if (isSqliteActive) {
-      saveHistoryToApi(newArchiveItem);
-    }
-    alert('تم حفظ الأسبوع الحالي في الأرشيف و SQLite بنجاح!');
+    saveArchivedWeekToFirestore(newArchiveItem);
+    alert('تم حفظ الأسبوع الحالي في الأرشيف وقاعدة البيانات السحابية Live Firestore بنجاح!');
   };
 
   const handleLoadArchivedWeek = (week: ArchivedWeek) => {
@@ -680,10 +521,7 @@ export default function App() {
   };
 
   const handleDeleteArchivedWeek = (weekId: string) => {
-    setArchivedWeeks((prev) => prev.filter((w) => w.id !== weekId));
-    if (isSqliteActive) {
-      deleteHistoryFromApi(weekId);
-    }
+    deleteArchivedWeekFromFirestore(weekId);
   };
 
   const handleStartNewWeek = (startDateSunday: string, keepMembers: boolean) => {
@@ -756,14 +594,8 @@ export default function App() {
   };
 
   const handleResetData = async () => {
-    if (confirm('هل ترغب في إعادة ضبط البيانات إلى النموذج الأصلي (جدول فريق الاستشاريين)?')) {
-      if (isSqliteActive) {
-        const resetData = await resetScheduleFromApi();
-        if (resetData) {
-          updateAndSyncSchedule(resetData);
-          return;
-        }
-      }
+    if (confirm('هل ترغب في إعادة ضبط البيانات إلى النموذج الأصلي (جدول فريق الاستشاريين)؟')) {
+      await resetScheduleInFirestore();
       updateAndSyncSchedule(INITIAL_SCHEDULE_DATA);
     }
   };
@@ -825,33 +657,18 @@ export default function App() {
     <div className="min-h-screen bg-[#0b1120] text-slate-100 p-3 sm:p-6 md:p-8 selection:bg-cyan-500 selection:text-black">
       <div className="max-w-[1600px] mx-auto">
         
-        {/* SQLite Database Connection Status Bar */}
-        <div className="no-print mb-3 flex items-center justify-between text-[11px] px-3 py-1.5 bg-slate-900/80 border border-cyan-500/20 rounded-xl text-slate-300">
+        {/* Firebase Firestore Database Connection Status Bar */}
+        <div className="no-print mb-3 flex items-center justify-between text-[11px] px-3 py-1.5 bg-slate-900/90 border border-emerald-500/30 rounded-xl text-slate-300 shadow-md">
           <div className="flex items-center gap-2 flex-wrap">
-            <Database className="w-3.5 h-3.5 text-cyan-400" />
+            <Database className="w-3.5 h-3.5 text-emerald-400" />
             <span className="font-bold text-white">قاعدة البيانات:</span>
-            {isSqliteActive ? (
-              <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                SQLite متصلة ومزامنة مع كافة الأجهزة (تحديث مباشر تلقائي)
-              </span>
-            ) : (
-              <span className="text-amber-300 font-medium bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-md">
-                تخزين متصفح موقت
-              </span>
-            )}
-            <button
-              onClick={handleForceSync}
-              disabled={isManualSyncing}
-              className="inline-flex items-center gap-1 text-cyan-300 hover:text-white bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/30 px-2.5 py-0.5 rounded-md font-bold transition-all disabled:opacity-50 cursor-pointer"
-              title="تحديث واستجلاب أحدث البيانات من السيرفر فوراً"
-            >
-              <RefreshCw className={`w-3 h-3 ${isManualSyncing ? 'animate-spin' : ''}`} />
-              {isManualSyncing ? 'جاري المزامنة...' : 'مزامنة وتحديث الآن'}
-            </button>
+            <span className="inline-flex items-center gap-1.5 text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-0.5 rounded-md">
+              <Zap className="w-3 h-3 text-amber-400 fill-amber-400 animate-pulse" />
+              Firebase Firestore (Live Cloud DB - مزامنة دائمية فورية حية عبر كل الأجهزة)
+            </span>
           </div>
           <div className="text-slate-400 hidden sm:block font-medium">
-            نظام إدارة وجدولة المهام - PARADISE AI
+            نظام إدارة وجدولة المهام الحيّ - PARADISE AI
           </div>
         </div>
 
