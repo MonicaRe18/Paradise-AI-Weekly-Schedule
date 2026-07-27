@@ -27,7 +27,7 @@ import {
   resetScheduleInFirestore,
   DEFAULT_PASSWORDS,
 } from './services/firestoreService';
-import { Database, CheckCircle2, Zap } from 'lucide-react';
+// lucide-react icons can be removed if unused
 
 const STORAGE_KEY = 'paradise_weekly_team_schedule_v1';
 const HISTORY_STORAGE_KEY = 'paradise_schedule_history_v1';
@@ -657,20 +657,6 @@ export default function App() {
     <div className="min-h-screen bg-[#0b1120] text-slate-100 p-3 sm:p-6 md:p-8 selection:bg-cyan-500 selection:text-black">
       <div className="max-w-[1600px] mx-auto">
         
-        {/* Firebase Firestore Database Connection Status Bar */}
-        <div className="no-print mb-3 flex items-center justify-between text-[11px] px-3 py-1.5 bg-slate-900/90 border border-emerald-500/30 rounded-xl text-slate-300 shadow-md">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Database className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="font-bold text-white">قاعدة البيانات:</span>
-            <span className="inline-flex items-center gap-1.5 text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-0.5 rounded-md">
-              <Zap className="w-3 h-3 text-amber-400 fill-amber-400 animate-pulse" />
-              Firebase Firestore (Live Cloud DB - مزامنة دائمية فورية حية عبر كل الأجهزة)
-            </span>
-          </div>
-          <div className="text-slate-400 hidden sm:block font-medium">
-            نظام إدارة وجدولة المهام الحيّ - PARADISE AI
-          </div>
-        </div>
 
         {/* Main Header Component */}
         <Header
