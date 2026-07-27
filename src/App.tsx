@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { INITIAL_SCHEDULE_DATA } from './data/initialData';
 import { ScheduleData, ViewMode, TaskStatus, DailyTask, TeamMember, ScheduleHeader, FooterNote, ArchivedWeek } from './types';
 import { Header } from './components/Header';
@@ -24,6 +24,8 @@ import {
   deleteHistoryFromApi,
   resetScheduleFromApi,
   checkSqliteHealth,
+  fetchPasswordsFromApi,
+  savePasswordsToApi,
 } from './services/api';
 import { Database, CheckCircle2 } from 'lucide-react';
 
@@ -150,6 +152,8 @@ export default function App() {
     initialText: '',
   });
 
+  const isInitialLoadedRef = useRef(false);
+
   // Fetch initial data from SQLite server API on boot
   useEffect(() => {
     async function initData() {
@@ -157,31 +161,84 @@ export default function App() {
       setIsSqliteActive(isHealthy);
 
       if (isHealthy) {
-        const apiData = await fetchScheduleFromApi();
+        const [apiData, apiHistory, apiPasswords] = await Promise.all([
+          fetchScheduleFromApi(),
+          fetchHistoryFromApi(),
+          fetchPasswordsFromApi(),
+        ]);
+
         if (apiData) {
           setScheduleData(apiData);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(apiData));
+          } catch (e) {
+            console.error('Failed to set localStorage schedule', e);
+          }
         }
 
-        const apiHistory = await fetchHistoryFromApi();
         if (apiHistory) {
           setArchivedWeeks(apiHistory);
+          try {
+            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(apiHistory));
+          } catch (e) {
+            console.error('Failed to set localStorage history', e);
+          }
+        }
+
+        if (apiPasswords) {
+          setPasswords(apiPasswords);
+          try {
+            localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(apiPasswords));
+          } catch (e) {
+            console.error('Failed to set localStorage passwords', e);
+          }
         }
       }
+      isInitialLoadedRef.current = true;
     }
     initData();
+
+    // Re-fetch latest server data when tab gets focused
+    const handleFocus = () => {
+      checkSqliteHealth().then((isHealthy) => {
+        if (isHealthy) {
+          fetchScheduleFromApi().then((data) => {
+            if (data) setScheduleData(data);
+          });
+          fetchPasswordsFromApi().then((p) => {
+            if (p) setPasswords(p);
+          });
+        }
+      });
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   // Sync active schedule to SQLite server API and localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(scheduleData));
-      if (isSqliteActive) {
+      if (isSqliteActive && isInitialLoadedRef.current) {
         saveScheduleToApi(scheduleData);
       }
     } catch (e) {
       console.error('Failed to save schedule data', e);
     }
   }, [scheduleData, isSqliteActive]);
+
+  // Sync passwords to SQLite server API and localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(passwords));
+      if (isSqliteActive && isInitialLoadedRef.current) {
+        savePasswordsToApi(passwords);
+      }
+    } catch (e) {
+      console.error('Failed to save passwords', e);
+    }
+  }, [passwords, isSqliteActive]);
 
   // Sync history archive to SQLite server API and localStorage
   useEffect(() => {

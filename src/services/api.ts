@@ -98,6 +98,40 @@ export async function deleteHistoryFromApi(id: string): Promise<boolean> {
   return false;
 }
 
+export async function fetchPasswordsFromApi(): Promise<Record<string, string> | null> {
+  try {
+    const res = await fetch(`${API_BASE}/passwords`);
+    if (res.ok) {
+      const result = await res.json();
+      if (result.success && result.data) {
+        return result.data;
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching passwords from SQLite API:', e);
+  }
+  return null;
+}
+
+export async function savePasswordsToApi(passwords: Record<string, string>): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/passwords`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(passwords),
+    });
+    if (res.ok) {
+      const result = await res.json();
+      return result.success;
+    }
+  } catch (e) {
+    console.error('Error saving passwords to SQLite API:', e);
+  }
+  return false;
+}
+
 export async function resetScheduleFromApi(): Promise<ScheduleData | null> {
   try {
     const res = await fetch(`${API_BASE}/reset`, {

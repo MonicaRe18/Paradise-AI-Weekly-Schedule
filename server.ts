@@ -7,6 +7,8 @@ import {
   getArchivedWeeksFromDb,
   saveArchivedWeekToDb,
   deleteArchivedWeekFromDb,
+  getPasswordsFromDb,
+  savePasswordsToDb,
   seedDefaultData,
   getDb,
 } from './src/db/sqlite.js';
@@ -87,6 +89,32 @@ async function startServer() {
     } catch (error) {
       console.error('Error deleting archived week:', error);
       res.status(500).json({ success: false, error: 'Failed to delete archived week' });
+    }
+  });
+
+  // GET passwords
+  app.get('/api/passwords', async (req, res) => {
+    try {
+      const passwords = await getPasswordsFromDb();
+      res.json({ success: true, data: passwords });
+    } catch (error) {
+      console.error('Error fetching passwords:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch passwords' });
+    }
+  });
+
+  // POST update passwords
+  app.post('/api/passwords', async (req, res) => {
+    try {
+      const passwords = req.body;
+      if (!passwords || typeof passwords !== 'object') {
+        return res.status(400).json({ success: false, error: 'Invalid passwords payload' });
+      }
+      await savePasswordsToDb(passwords);
+      res.json({ success: true, message: 'Passwords saved to SQLite' });
+    } catch (error) {
+      console.error('Error saving passwords:', error);
+      res.status(500).json({ success: false, error: 'Failed to save passwords' });
     }
   });
 

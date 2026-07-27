@@ -131,6 +131,15 @@ function initTables(database: Database) {
     );
   `);
 
+  // Table for user passwords
+  database.run(`
+    CREATE TABLE IF NOT EXISTS user_passwords (
+      key TEXT PRIMARY KEY,
+      password TEXT
+    );
+  `);
+  database.run(`INSERT OR IGNORE INTO user_passwords (key, password) VALUES ('admin', 'pass@word1');`);
+
   // Seed default data if header is empty
   const res = database.exec("SELECT COUNT(*) as cnt FROM header_config");
   const count = res.length > 0 && res[0].values.length > 0 ? (res[0].values[0][0] as number) : 0;
@@ -412,5 +421,33 @@ export async function saveArchivedWeekToDb(week: ArchivedWeek): Promise<void> {
 export async function deleteArchivedWeekFromDb(id: string): Promise<void> {
   const database = await getDb();
   database.run(`DELETE FROM archived_weeks WHERE id = ?;`, [id]);
+  persistDb();
+}
+
+export async function getPasswordsFromDb(): Promise<Record<string, string>> {
+  const database = await getDb();
+  const res = database.exec("SELECT key, password FROM user_passwords");
+  const result: Record<string, string> = { admin: 'pass@word1' };
+  if (res.length > 0) {
+    const cols = res[0].columns;
+    res[0].values.forEach((row) => {
+      const k = row[cols.indexOf('key')] as string;
+      const p = row[cols.indexOf('password')] as string;
+      if (k && p) {
+        result[k] = p;
+      }
+    });
+  }
+  return result;
+}
+
+export async function savePasswordsToDb(passwords: Record<string, string>): Promise<void> {
+  const database = await getDb();
+  Object.entries(passwords).forEach(([key, pass]) => {
+    database.run(
+      `INSERT OR REPLACE INTO user_passwords (key, password) VALUES (?, ?);`,
+      [key, pass]
+    );
+  });
   persistDb();
 }
