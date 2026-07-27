@@ -26,12 +26,18 @@
 }
 
 /* Print Optimization */
+@page {
+  size: A4 landscape;
+  margin: 8mm;
+}
+
 @media print {
-  body {
+  html, body {
     background-color: #0b1120 !important;
     color: #f8fafc !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    font-family: 'Tajawal', 'Cairo', sans-serif !important;
   }
 
   .no-print {
@@ -40,9 +46,23 @@
 
   .print-container {
     width: 100% !important;
+    max-width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
     box-shadow: none !important;
+    background-color: #0f172a !important;
+    border-color: #0284c7 !important;
+  }
+
+  table {
+    width: 100% !important;
+    table-layout: auto !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    word-break: break-word !important;
+    white-space: normal !important;
   }
 
   .print-page-break {

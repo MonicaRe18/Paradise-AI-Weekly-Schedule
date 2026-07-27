@@ -43,8 +43,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
             </th>
 
             {/* Member Name */}
-            <th className="py-3 px-4 w-44 font-black border-l border-cyan-500/20 font-['Tajawal'] text-base">
-              الاسم
+            <th className="py-3 px-4 w-48 font-black border-l border-cyan-500/20 font-['Tajawal'] text-base text-cyan-200">
+              اسم الموظف
             </th>
 
             {/* Main Focus Tasks */}
