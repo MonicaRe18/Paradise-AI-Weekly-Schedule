@@ -1,0 +1,6 @@
+{
+  "name": "جدول المهام الأسبوعي",
+  "description": "نظام تفاعلي لجدولة مهام الفريق الأسبوعية وتعيين المهام ومتابعة حالة الإنجاز اليومية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
