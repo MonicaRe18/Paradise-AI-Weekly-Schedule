@@ -51,15 +51,7 @@ export default function App() {
   });
 
   const handleSavePassword = (targetKey: string, newPass: string) => {
-    setPasswords((prev) => {
-      const updated = { ...prev, [targetKey]: newPass };
-      try {
-        localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {
-        console.error('Failed to save password to localStorage', e);
-      }
-      return updated;
-    });
+    updateAndSyncPasswords((prev) => ({ ...prev, [targetKey]: newPass }));
   };
 
   // User Auth Session State
@@ -154,6 +146,60 @@ export default function App() {
 
   const isInitialLoadedRef = useRef(false);
 
+  // Sync helpers that save to SQLite backend API & localStorage on explicit user actions
+  const updateAndSyncSchedule = (updater: ScheduleData | ((prev: ScheduleData) => ScheduleData)) => {
+    setScheduleData((prev) => {
+      const nextData = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+      } catch (e) {
+        console.error('Failed to set localStorage schedule', e);
+      }
+      if (isSqliteActive) {
+        saveScheduleToApi(nextData);
+      }
+      return nextData;
+    });
+  };
+
+  const updateAndSyncPasswords = (updater: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => {
+    setPasswords((prev) => {
+      const nextData = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(nextData));
+      } catch (e) {
+        console.error('Failed to set localStorage passwords', e);
+      }
+      if (isSqliteActive) {
+        savePasswordsToApi(nextData);
+      }
+      return nextData;
+    });
+  };
+
+  const scheduleDataRef = useRef(scheduleData);
+  useEffect(() => {
+    scheduleDataRef.current = scheduleData;
+  }, [scheduleData]);
+
+  const passwordsRef = useRef(passwords);
+  useEffect(() => {
+    passwordsRef.current = passwords;
+  }, [passwords]);
+
+  const isAnyModalOpen =
+    isTaskModalOpen ||
+    isMemberModalOpen ||
+    isHeaderSettingsOpen ||
+    isHistoryModalOpen ||
+    isChangePasswordModalOpen ||
+    textEditContext.isOpen;
+
+  const isModalOpenRef = useRef(isAnyModalOpen);
+  useEffect(() => {
+    isModalOpenRef.current = isAnyModalOpen;
+  }, [isAnyModalOpen]);
+
   // Fetch initial data from SQLite server API on boot
   useEffect(() => {
     async function initData() {
@@ -216,29 +262,47 @@ export default function App() {
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
-  // Sync active schedule to SQLite server API and localStorage
+  // Background Live Sync Polling (Every 2.5s) to reflect updates across devices & accounts immediately
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(scheduleData));
-      if (isSqliteActive && isInitialLoadedRef.current) {
-        saveScheduleToApi(scheduleData);
-      }
-    } catch (e) {
-      console.error('Failed to save schedule data', e);
-    }
-  }, [scheduleData, isSqliteActive]);
+    const pollInterval = setInterval(async () => {
+      // Don't poll if any modal is actively open to avoid interrupting user typing
+      if (isModalOpenRef.current) return;
 
-  // Sync passwords to SQLite server API and localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(passwords));
-      if (isSqliteActive && isInitialLoadedRef.current) {
-        savePasswordsToApi(passwords);
+      const healthy = await checkSqliteHealth();
+      setIsSqliteActive(healthy);
+      if (!healthy) return;
+
+      const remoteData = await fetchScheduleFromApi();
+      if (remoteData) {
+        const remoteStr = JSON.stringify(remoteData);
+        const localStr = JSON.stringify(scheduleDataRef.current);
+        if (remoteStr !== localStr) {
+          setScheduleData(remoteData);
+          try {
+            localStorage.setItem(STORAGE_KEY, remoteStr);
+          } catch (e) {
+            console.error('Failed to update localStorage from poll', e);
+          }
+        }
       }
-    } catch (e) {
-      console.error('Failed to save passwords', e);
-    }
-  }, [passwords, isSqliteActive]);
+
+      const remotePasswords = await fetchPasswordsFromApi();
+      if (remotePasswords) {
+        const remotePassStr = JSON.stringify(remotePasswords);
+        const localPassStr = JSON.stringify(passwordsRef.current);
+        if (remotePassStr !== localPassStr) {
+          setPasswords(remotePasswords);
+          try {
+            localStorage.setItem(PASSWORDS_STORAGE_KEY, remotePassStr);
+          } catch (e) {
+            console.error('Failed to update passwords from poll', e);
+          }
+        }
+      }
+    }, 2500);
+
+    return () => clearInterval(pollInterval);
+  }, []);
 
   // Sync history archive to SQLite server API and localStorage
   useEffect(() => {
@@ -278,7 +342,7 @@ export default function App() {
     if (!taskModalContext) return;
     const { memberId, dayKey } = taskModalContext;
 
-    setScheduleData((prev) => {
+    updateAndSyncSchedule((prev) => {
       const updatedMembers = prev.teamMembers.map((m) => {
         if (m.id !== memberId) return m;
 
@@ -327,7 +391,7 @@ export default function App() {
     if (!taskModalContext) return;
     const { memberId, dayKey } = taskModalContext;
 
-    setScheduleData((prev) => {
+    updateAndSyncSchedule((prev) => {
       const updatedMembers = prev.teamMembers.map((m) => {
         if (m.id !== memberId) return m;
 
@@ -348,7 +412,7 @@ export default function App() {
 
   // Quick Status Toggle Cycle: pending -> in_progress -> completed -> deferred -> pending
   const handleQuickToggleStatus = (memberId: string, dayKey: string, taskId: string) => {
-    setScheduleData((prev) => {
+    updateAndSyncSchedule((prev) => {
       const updatedMembers = prev.teamMembers.map((m) => {
         if (m.id !== memberId) return m;
 
@@ -391,7 +455,7 @@ export default function App() {
   const handleSaveMember = (
     memberInput: Omit<TeamMember, 'id' | 'tasksByDay'> & { id?: string }
   ) => {
-    setScheduleData((prev) => {
+    updateAndSyncSchedule((prev) => {
       let updatedMembers = [...prev.teamMembers];
 
       if (memberInput.id) {
@@ -435,7 +499,7 @@ export default function App() {
 
   const handleDeleteMember = (memberId: string) => {
     if (confirm('هل أنت تأكد من رغبتك في حذف هذا العضو وجدول مهامه؟')) {
-      setScheduleData((prev) => ({
+      updateAndSyncSchedule((prev) => ({
         ...prev,
         teamMembers: prev.teamMembers.filter((m) => m.id !== memberId),
       }));
@@ -470,7 +534,7 @@ export default function App() {
     field: 'ongoingFollowUp' | 'mainTasks',
     newText: string
   ) => {
-    setScheduleData((prev) => ({
+    updateAndSyncSchedule((prev) => ({
       ...prev,
       teamMembers: prev.teamMembers.map((m) =>
         m.id === memberId ? { ...m, [field]: newText } : m
@@ -480,7 +544,7 @@ export default function App() {
 
   // --- Header & Date Range Operations ---
   const handleSaveHeader = (newHeader: ScheduleHeader, updatedSundayDate?: string) => {
-    setScheduleData((prev) => {
+    updateAndSyncSchedule((prev) => {
       let days = prev.days;
       let subtitle = newHeader.subtitle;
 
@@ -504,7 +568,7 @@ export default function App() {
   };
 
   const handleUpdateNotes = (newNotes: FooterNote[]) => {
-    setScheduleData((prev) => ({ ...prev, footerNotes: newNotes }));
+    updateAndSyncSchedule((prev) => ({ ...prev, footerNotes: newNotes }));
   };
 
   // --- History & Archive Operations ---
@@ -530,7 +594,7 @@ export default function App() {
   };
 
   const handleLoadArchivedWeek = (week: ArchivedWeek) => {
-    setScheduleData(week.data);
+    updateAndSyncSchedule(week.data);
   };
 
   const handleDeleteArchivedWeek = (weekId: string) => {
@@ -548,7 +612,7 @@ export default function App() {
 
     const { days, subtitle, startDateISO, endDateISO } = generateSundayToThursdayDays(startDateSunday);
 
-    setScheduleData((prev) => {
+    updateAndSyncSchedule((prev) => {
       const newMembers: TeamMember[] = keepMembers
         ? prev.teamMembers.map((m) => ({
             ...m,
@@ -597,7 +661,7 @@ export default function App() {
         try {
           const parsed = JSON.parse(event.target?.result as string);
           if (parsed && parsed.teamMembers && parsed.header) {
-            setScheduleData(parsed);
+            updateAndSyncSchedule(parsed);
             alert('تم استيراد جدول الفريق بنجاح!');
           } else {
             alert('صيغة ملف JSON غير صالحة لجدول المهام.');
@@ -614,11 +678,11 @@ export default function App() {
       if (isSqliteActive) {
         const resetData = await resetScheduleFromApi();
         if (resetData) {
-          setScheduleData(resetData);
+          updateAndSyncSchedule(resetData);
           return;
         }
       }
-      setScheduleData(INITIAL_SCHEDULE_DATA);
+      updateAndSyncSchedule(INITIAL_SCHEDULE_DATA);
     }
   };
 

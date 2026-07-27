@@ -350,6 +350,15 @@ export async function getScheduleFromDb(): Promise<ScheduleData> {
     });
   }
 
+  if (teamMembers.length === 0) {
+    seedDefaultData(database, INITIAL_SCHEDULE_DATA);
+    return getScheduleFromDb();
+  }
+
+  if (footerNotes.length === 0) {
+    footerNotes.push(...INITIAL_SCHEDULE_DATA.footerNotes);
+  }
+
   return {
     header,
     days,
