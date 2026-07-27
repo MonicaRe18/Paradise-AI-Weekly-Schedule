@@ -53,7 +53,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({
   const inProgressPct = totalTasks > 0 ? Math.round((inProgressCount / totalTasks) * 100) : 0;
 
   return (
-    <div className="my-6 p-5 rounded-2xl border border-cyan-500/20 bg-slate-950/80 shadow-xl space-y-4 print-container">
+    <div className="my-6 p-5 rounded-2xl border border-cyan-500/20 bg-slate-950/80 shadow-xl space-y-4 print:hidden">
       {/* Top Stats Overview Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-cyan-500/15">
         <div className="flex items-center gap-3">

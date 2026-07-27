@@ -32,7 +32,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   const isAdmin = userSession?.role === 'admin';
 
   return (
-    <div className="w-full overflow-x-auto rounded-2xl border border-cyan-500/30 bg-slate-950/90 shadow-2xl shadow-cyan-950/30 print-container">
+    <div className="w-full overflow-x-auto rounded-2xl border border-cyan-500/30 bg-slate-950/90 shadow-2xl shadow-cyan-950/30 print:hidden">
       <table className="w-full min-w-[1200px] border-collapse text-right text-xs md:text-sm">
         {/* Table Header Row */}
         <thead>

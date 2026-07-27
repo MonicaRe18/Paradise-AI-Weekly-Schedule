@@ -14,6 +14,7 @@ import { TodayStandupView } from './components/TodayStandupView';
 import { MemberSummaryView } from './components/MemberSummaryView';
 import { LoginPage, UserSession } from './components/LoginPage';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { PdfReportPrintView } from './components/PdfReportPrintView';
 import { generateSundayToThursdayDays } from './utils/dateUtils';
 import {
   fetchScheduleFromApi,
@@ -660,6 +661,12 @@ export default function App() {
           onPrint={handlePrint}
           totalTasks={totalTaskCount}
           completedTasks={completedTaskCount}
+        />
+
+        {/* Dedicated PDF Report Print View (visible ONLY during print/PDF export) */}
+        <PdfReportPrintView
+          headerData={scheduleData.header}
+          teamMembers={userScopedTeamMembers}
         />
 
         {/* View Switcher Container */}

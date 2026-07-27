@@ -27,7 +27,7 @@ export const FooterNotes: React.FC<FooterNotesProps> = ({ notes, onUpdateNotes }
   };
 
   return (
-    <div className="mt-6 space-y-3 print-container font-['Cairo']">
+    <div className="mt-6 space-y-3 print:hidden font-['Cairo']">
       {notes.map((note) => {
         const isEditing = editingId === note.id;
         const isWhatsapp = note.iconType === 'whatsapp';

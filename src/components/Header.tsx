@@ -62,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isAdmin = userSession?.role === 'admin';
 
   return (
-    <header className="relative mb-6 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950/80 p-5 shadow-2xl shadow-cyan-950/40 print-container">
+    <header className="relative mb-6 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950/80 p-5 shadow-2xl shadow-cyan-950/40 print:hidden">
       {/* Background ambient lighting */}
       <div className="absolute top-0 left-1/4 h-32 w-1/2 -translate-y-12 bg-cyan-500/10 blur-3xl pointer-events-none rounded-full" />
       <div className="absolute bottom-0 right-1/4 h-24 w-1/3 bg-blue-600/10 blur-3xl pointer-events-none rounded-full" />

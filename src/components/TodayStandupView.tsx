@@ -35,7 +35,7 @@ export const TodayStandupView: React.FC<TodayStandupViewProps> = ({
   const dayPct = dayTotal > 0 ? Math.round((dayCompleted / dayTotal) * 100) : 0;
 
   return (
-    <div className="space-y-6 print-container font-['Cairo']">
+    <div className="space-y-6 print:hidden font-['Cairo']">
       
       {/* Day Selector Tabs Bar */}
       <div className="p-4 rounded-2xl border border-cyan-500/30 bg-slate-950/90 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">

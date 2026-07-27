@@ -19,7 +19,7 @@ export const MemberSummaryView: React.FC<MemberSummaryViewProps> = ({
   onQuickToggleStatus,
 }) => {
   return (
-    <div className="space-y-6 print-container font-['Cairo']">
+    <div className="space-y-6 print:hidden font-['Cairo']">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {teamMembers.map((member) => {
           // Calculate member weekly completion rate
