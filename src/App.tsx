@@ -680,6 +680,7 @@ export default function App() {
         <PdfReportPrintView
           headerData={scheduleData.header}
           teamMembers={userScopedTeamMembers}
+          days={scheduleData.days}
         />
 
         {/* View Switcher Container */}
