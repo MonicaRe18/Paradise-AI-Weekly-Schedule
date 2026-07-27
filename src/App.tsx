@@ -27,7 +27,7 @@ import {
   fetchPasswordsFromApi,
   savePasswordsToApi,
 } from './services/api';
-import { Database, CheckCircle2 } from 'lucide-react';
+import { Database, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const STORAGE_KEY = 'paradise_weekly_team_schedule_v1';
 const HISTORY_STORAGE_KEY = 'paradise_schedule_history_v1';
@@ -145,37 +145,9 @@ export default function App() {
   });
 
   const isInitialLoadedRef = useRef(false);
-
-  // Sync helpers that save to SQLite backend API & localStorage on explicit user actions
-  const updateAndSyncSchedule = (updater: ScheduleData | ((prev: ScheduleData) => ScheduleData)) => {
-    setScheduleData((prev) => {
-      const nextData = typeof updater === 'function' ? updater(prev) : updater;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-      } catch (e) {
-        console.error('Failed to set localStorage schedule', e);
-      }
-      if (isSqliteActive) {
-        saveScheduleToApi(nextData);
-      }
-      return nextData;
-    });
-  };
-
-  const updateAndSyncPasswords = (updater: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => {
-    setPasswords((prev) => {
-      const nextData = typeof updater === 'function' ? updater(prev) : updater;
-      try {
-        localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(nextData));
-      } catch (e) {
-        console.error('Failed to set localStorage passwords', e);
-      }
-      if (isSqliteActive) {
-        savePasswordsToApi(nextData);
-      }
-      return nextData;
-    });
-  };
+  const isSavingRef = useRef(false);
+  const lastSaveTimeRef = useRef(0);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
 
   const scheduleDataRef = useRef(scheduleData);
   useEffect(() => {
@@ -200,6 +172,104 @@ export default function App() {
     isModalOpenRef.current = isAnyModalOpen;
   }, [isAnyModalOpen]);
 
+  // Sync helpers that save to SQLite backend API & localStorage on explicit user actions
+  const updateAndSyncSchedule = (updater: ScheduleData | ((prev: ScheduleData) => ScheduleData)) => {
+    isSavingRef.current = true;
+    lastSaveTimeRef.current = Date.now();
+
+    setScheduleData((prev) => {
+      const nextData = typeof updater === 'function' ? updater(prev) : updater;
+      scheduleDataRef.current = nextData;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+      } catch (e) {
+        console.error('Failed to set localStorage schedule', e);
+      }
+      if (isSqliteActive) {
+        saveScheduleToApi(nextData).then((saved) => {
+          if (saved) {
+            scheduleDataRef.current = saved;
+            setScheduleData(saved);
+          }
+          setTimeout(() => {
+            isSavingRef.current = false;
+          }, 1200);
+        }).catch(() => {
+          isSavingRef.current = false;
+        });
+      } else {
+        isSavingRef.current = false;
+      }
+      return nextData;
+    });
+  };
+
+  const updateAndSyncPasswords = (updater: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => {
+    isSavingRef.current = true;
+    lastSaveTimeRef.current = Date.now();
+
+    setPasswords((prev) => {
+      const nextData = typeof updater === 'function' ? updater(prev) : updater;
+      passwordsRef.current = nextData;
+      try {
+        localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(nextData));
+      } catch (e) {
+        console.error('Failed to set localStorage passwords', e);
+      }
+      if (isSqliteActive) {
+        savePasswordsToApi(nextData).then((saved) => {
+          if (saved) {
+            passwordsRef.current = saved;
+            setPasswords(saved);
+          }
+          setTimeout(() => {
+            isSavingRef.current = false;
+          }, 1200);
+        }).catch(() => {
+          isSavingRef.current = false;
+        });
+      } else {
+        isSavingRef.current = false;
+      }
+      return nextData;
+    });
+  };
+
+  // Manual Force Sync with Server API
+  const handleForceSync = async () => {
+    setIsManualSyncing(true);
+    try {
+      const healthy = await checkSqliteHealth();
+      setIsSqliteActive(healthy);
+      if (healthy) {
+        const [apiData, apiHistory, apiPasswords] = await Promise.all([
+          fetchScheduleFromApi(),
+          fetchHistoryFromApi(),
+          fetchPasswordsFromApi(),
+        ]);
+
+        if (apiData) {
+          scheduleDataRef.current = apiData;
+          setScheduleData(apiData);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(apiData));
+        }
+        if (apiHistory) {
+          setArchivedWeeks(apiHistory);
+          localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(apiHistory));
+        }
+        if (apiPasswords) {
+          passwordsRef.current = apiPasswords;
+          setPasswords(apiPasswords);
+          localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(apiPasswords));
+        }
+      }
+    } catch (e) {
+      console.error('Manual sync failed:', e);
+    } finally {
+      setIsManualSyncing(false);
+    }
+  };
+
   // Fetch initial data from SQLite server API on boot
   useEffect(() => {
     async function initData() {
@@ -214,6 +284,7 @@ export default function App() {
         ]);
 
         if (apiData) {
+          scheduleDataRef.current = apiData;
           setScheduleData(apiData);
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(apiData));
@@ -232,6 +303,7 @@ export default function App() {
         }
 
         if (apiPasswords) {
+          passwordsRef.current = apiPasswords;
           setPasswords(apiPasswords);
           try {
             localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(apiPasswords));
@@ -249,10 +321,16 @@ export default function App() {
       checkSqliteHealth().then((isHealthy) => {
         if (isHealthy) {
           fetchScheduleFromApi().then((data) => {
-            if (data) setScheduleData(data);
+            if (data) {
+              scheduleDataRef.current = data;
+              setScheduleData(data);
+            }
           });
           fetchPasswordsFromApi().then((p) => {
-            if (p) setPasswords(p);
+            if (p) {
+              passwordsRef.current = p;
+              setPasswords(p);
+            }
           });
         }
       });
@@ -265,18 +343,21 @@ export default function App() {
   // Background Live Sync Polling (Every 2.5s) to reflect updates across devices & accounts immediately
   useEffect(() => {
     const pollInterval = setInterval(async () => {
-      // Don't poll if any modal is actively open to avoid interrupting user typing
-      if (isModalOpenRef.current) return;
+      // Don't poll if any modal is actively open or if user just saved (< 3s ago)
+      if (isModalOpenRef.current || isSavingRef.current || Date.now() - lastSaveTimeRef.current < 3000) {
+        return;
+      }
 
       const healthy = await checkSqliteHealth();
       setIsSqliteActive(healthy);
       if (!healthy) return;
 
       const remoteData = await fetchScheduleFromApi();
-      if (remoteData) {
+      if (remoteData && !isSavingRef.current && Date.now() - lastSaveTimeRef.current >= 3000) {
         const remoteStr = JSON.stringify(remoteData);
         const localStr = JSON.stringify(scheduleDataRef.current);
         if (remoteStr !== localStr) {
+          scheduleDataRef.current = remoteData;
           setScheduleData(remoteData);
           try {
             localStorage.setItem(STORAGE_KEY, remoteStr);
@@ -287,10 +368,11 @@ export default function App() {
       }
 
       const remotePasswords = await fetchPasswordsFromApi();
-      if (remotePasswords) {
+      if (remotePasswords && !isSavingRef.current) {
         const remotePassStr = JSON.stringify(remotePasswords);
         const localPassStr = JSON.stringify(passwordsRef.current);
         if (remotePassStr !== localPassStr) {
+          passwordsRef.current = remotePasswords;
           setPasswords(remotePasswords);
           try {
             localStorage.setItem(PASSWORDS_STORAGE_KEY, remotePassStr);
@@ -745,21 +827,30 @@ export default function App() {
         
         {/* SQLite Database Connection Status Bar */}
         <div className="no-print mb-3 flex items-center justify-between text-[11px] px-3 py-1.5 bg-slate-900/80 border border-cyan-500/20 rounded-xl text-slate-300">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Database className="w-3.5 h-3.5 text-cyan-400" />
             <span className="font-bold text-white">قاعدة البيانات:</span>
             {isSqliteActive ? (
               <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                <CheckCircle2 className="w-3 h-3" />
-                SQLite متصلة (تخزين دائم في ملف sqlite)
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                SQLite متصلة ومزامنة مع كافة الأجهزة (تحديث مباشر تلقائي)
               </span>
             ) : (
               <span className="text-amber-300 font-medium bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-md">
                 تخزين متصفح موقت
               </span>
             )}
+            <button
+              onClick={handleForceSync}
+              disabled={isManualSyncing}
+              className="inline-flex items-center gap-1 text-cyan-300 hover:text-white bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/30 px-2.5 py-0.5 rounded-md font-bold transition-all disabled:opacity-50 cursor-pointer"
+              title="تحديث واستجلاب أحدث البيانات من السيرفر فوراً"
+            >
+              <RefreshCw className={`w-3 h-3 ${isManualSyncing ? 'animate-spin' : ''}`} />
+              {isManualSyncing ? 'جاري المزامنة...' : 'مزامنة وتحديث الآن'}
+            </button>
           </div>
-          <div className="text-slate-400 hidden sm:block">
+          <div className="text-slate-400 hidden sm:block font-medium">
             نظام إدارة وجدولة المهام - PARADISE AI
           </div>
         </div>

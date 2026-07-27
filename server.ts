@@ -47,7 +47,8 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Invalid schedule data format' });
       }
       await saveScheduleToDb(scheduleData);
-      res.json({ success: true, message: 'Schedule saved to SQLite successfully' });
+      const updated = await getScheduleFromDb();
+      res.json({ success: true, message: 'Schedule saved to SQLite successfully', data: updated });
     } catch (error) {
       console.error('Error saving schedule:', error);
       res.status(500).json({ success: false, error: 'Failed to save schedule' });
@@ -73,7 +74,8 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Invalid archived week format' });
       }
       await saveArchivedWeekToDb(weekItem);
-      res.json({ success: true, message: 'Archived week saved to SQLite successfully' });
+      const updatedHistory = await getArchivedWeeksFromDb();
+      res.json({ success: true, message: 'Archived week saved to SQLite successfully', data: updatedHistory });
     } catch (error) {
       console.error('Error saving archived week:', error);
       res.status(500).json({ success: false, error: 'Failed to save archived week' });
@@ -85,7 +87,8 @@ async function startServer() {
     try {
       const { id } = req.params;
       await deleteArchivedWeekFromDb(id);
-      res.json({ success: true, message: 'Archived week deleted from SQLite' });
+      const updatedHistory = await getArchivedWeeksFromDb();
+      res.json({ success: true, message: 'Archived week deleted from SQLite', data: updatedHistory });
     } catch (error) {
       console.error('Error deleting archived week:', error);
       res.status(500).json({ success: false, error: 'Failed to delete archived week' });
@@ -111,7 +114,8 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Invalid passwords payload' });
       }
       await savePasswordsToDb(passwords);
-      res.json({ success: true, message: 'Passwords saved to SQLite' });
+      const updatedPasswords = await getPasswordsFromDb();
+      res.json({ success: true, message: 'Passwords saved to SQLite', data: updatedPasswords });
     } catch (error) {
       console.error('Error saving passwords:', error);
       res.status(500).json({ success: false, error: 'Failed to save passwords' });

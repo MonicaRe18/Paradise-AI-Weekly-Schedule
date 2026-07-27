@@ -30,7 +30,7 @@ export async function fetchScheduleFromApi(): Promise<ScheduleData | null> {
   return null;
 }
 
-export async function saveScheduleToApi(scheduleData: ScheduleData): Promise<boolean> {
+export async function saveScheduleToApi(scheduleData: ScheduleData): Promise<ScheduleData | null> {
   try {
     const res = await fetch(`${API_BASE}/schedule`, {
       method: 'POST',
@@ -41,12 +41,12 @@ export async function saveScheduleToApi(scheduleData: ScheduleData): Promise<boo
     });
     if (res.ok) {
       const result = await res.json();
-      return result.success;
+      if (result.success && result.data) return result.data;
     }
   } catch (e) {
     console.error('Error saving schedule to SQLite API:', e);
   }
-  return false;
+  return null;
 }
 
 export async function fetchHistoryFromApi(): Promise<ArchivedWeek[] | null> {
@@ -64,7 +64,7 @@ export async function fetchHistoryFromApi(): Promise<ArchivedWeek[] | null> {
   return null;
 }
 
-export async function saveHistoryToApi(week: ArchivedWeek): Promise<boolean> {
+export async function saveHistoryToApi(week: ArchivedWeek): Promise<ArchivedWeek[] | null> {
   try {
     const res = await fetch(`${API_BASE}/history`, {
       method: 'POST',
@@ -75,27 +75,27 @@ export async function saveHistoryToApi(week: ArchivedWeek): Promise<boolean> {
     });
     if (res.ok) {
       const result = await res.json();
-      return result.success;
+      if (result.success && result.data) return result.data;
     }
   } catch (e) {
     console.error('Error saving history item to SQLite API:', e);
   }
-  return false;
+  return null;
 }
 
-export async function deleteHistoryFromApi(id: string): Promise<boolean> {
+export async function deleteHistoryFromApi(id: string): Promise<ArchivedWeek[] | null> {
   try {
     const res = await fetch(`${API_BASE}/history/${id}`, {
       method: 'DELETE',
     });
     if (res.ok) {
       const result = await res.json();
-      return result.success;
+      if (result.success && result.data) return result.data;
     }
   } catch (e) {
     console.error('Error deleting history item from SQLite API:', e);
   }
-  return false;
+  return null;
 }
 
 export async function fetchPasswordsFromApi(): Promise<Record<string, string> | null> {
@@ -113,7 +113,7 @@ export async function fetchPasswordsFromApi(): Promise<Record<string, string> | 
   return null;
 }
 
-export async function savePasswordsToApi(passwords: Record<string, string>): Promise<boolean> {
+export async function savePasswordsToApi(passwords: Record<string, string>): Promise<Record<string, string> | null> {
   try {
     const res = await fetch(`${API_BASE}/passwords`, {
       method: 'POST',
@@ -124,12 +124,12 @@ export async function savePasswordsToApi(passwords: Record<string, string>): Pro
     });
     if (res.ok) {
       const result = await res.json();
-      return result.success;
+      if (result.success && result.data) return result.data;
     }
   } catch (e) {
     console.error('Error saving passwords to SQLite API:', e);
   }
-  return false;
+  return null;
 }
 
 export async function resetScheduleFromApi(): Promise<ScheduleData | null> {
