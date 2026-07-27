@@ -2,10 +2,12 @@ import React from 'react';
 import { Plus, Edit2, Trash2, User, ChevronRight, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { DayConfig, DailyTask, TeamMember, TaskStatus } from '../types';
 import { renderTaskIcon, getStatusConfig } from '../utils/iconHelper';
+import { UserSession } from './LoginPage';
 
 interface ScheduleGridProps {
   days: DayConfig[];
   teamMembers: TeamMember[];
+  userSession?: UserSession | null;
   onAddTask: (memberId: string, dayKey: string) => void;
   onEditTask: (memberId: string, dayKey: string, task: DailyTask) => void;
   onQuickToggleStatus: (memberId: string, dayKey: string, taskId: string) => void;
@@ -18,6 +20,7 @@ interface ScheduleGridProps {
 export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   days,
   teamMembers,
+  userSession,
   onAddTask,
   onEditTask,
   onQuickToggleStatus,
@@ -26,6 +29,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   onEditOngoingFollowUp,
   onEditMainTasks,
 }) => {
+  const isAdmin = userSession?.role === 'admin';
+
   return (
     <div className="w-full overflow-x-auto rounded-2xl border border-cyan-500/30 bg-slate-950/90 shadow-2xl shadow-cyan-950/30 print-container">
       <table className="w-full min-w-[1200px] border-collapse text-right text-xs md:text-sm">
@@ -104,45 +109,51 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                       </div>
                     </div>
 
-                    {/* Action buttons on hover */}
-                    <div className="no-print opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => onEditMember(member)}
-                        className="p-1 text-slate-400 hover:text-cyan-300 hover:bg-slate-800 rounded transition-colors"
-                        title="تعديل العضو"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => onDeleteMember(member.id)}
-                        className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-950/50 rounded transition-colors"
-                        title="حذف العضو"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {/* Action buttons on hover for Admin */}
+                    {isAdmin && (
+                      <div className="no-print opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => onEditMember(member)}
+                          className="p-1 text-slate-400 hover:text-cyan-300 hover:bg-slate-800 rounded transition-colors"
+                          title="تعديل العضو"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteMember(member.id)}
+                          className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-950/50 rounded transition-colors"
+                          title="حذف العضو"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </td>
 
                 {/* 3. Main Weekly Focus */}
                 <td
-                  onClick={() => onEditMainTasks(member.id, member.mainTasks)}
-                  className="py-3 px-3 border-l border-cyan-500/15 bg-slate-900/20 align-top text-xs text-slate-200 leading-relaxed font-medium group/main hover:bg-slate-800/60 transition-colors cursor-pointer"
-                  title="انقر لتعديل المهام الرئيسية"
+                  onClick={() => isAdmin && onEditMainTasks(member.id, member.mainTasks)}
+                  className={`py-3 px-3 border-l border-cyan-500/15 bg-slate-900/20 align-top text-xs text-slate-200 leading-relaxed font-medium group/main ${
+                    isAdmin ? 'hover:bg-slate-800/60 transition-colors cursor-pointer' : ''
+                  }`}
+                  title={isAdmin ? 'انقر لتعديل المهام الرئيسية' : 'المهام الرئيسية الخاصة بك'}
                 >
                   <div className="relative group/edit">
-                    <p className="whitespace-pre-line">{member.mainTasks || 'انقر لإضافة المهام الرئيسية...'}</p>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditMainTasks(member.id, member.mainTasks);
-                      }}
-                      className="no-print absolute top-0 left-0 opacity-0 group-hover/main:opacity-100 p-1 text-cyan-400 hover:bg-cyan-950/80 rounded text-[10px] flex items-center gap-1 border border-cyan-500/30 bg-slate-900 shadow-sm"
-                      title="تعديل المهام الرئيسية"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      <span>تعديل</span>
-                    </button>
+                    <p className="whitespace-pre-line">{member.mainTasks || 'لا توجد مهام رئيسية مضافة'}</p>
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditMainTasks(member.id, member.mainTasks);
+                        }}
+                        className="no-print absolute top-0 left-0 opacity-0 group-hover/main:opacity-100 p-1 text-cyan-400 hover:bg-cyan-950/80 rounded text-[10px] flex items-center gap-1 border border-cyan-500/30 bg-slate-900 shadow-sm"
+                        title="تعديل المهام الرئيسية"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        <span>تعديل</span>
+                      </button>
+                    )}
                   </div>
                 </td>
 
@@ -202,7 +213,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                               {/* Hover Edit button for specific task */}
                               <button
                                 onClick={() => onEditTask(member.id, day.key, task)}
-                                className="no-print absolute bottom-1 left-1 opacity-0 group-hover/task:opacity-100 p-1 text-slate-300 hover:text-cyan-300 hover:bg-slate-800/90 rounded bg-slate-900/90 border border-slate-700 transition-all shadow"
+                                className="no-print absolute bottom-1 left-1 opacity-0 group-hover/task:opacity-100 p-1 text-slate-300 hover:text-cyan-300 hover:bg-slate-800/90 rounded bg-slate-900/90 border border-slate-700 transition-all shadow cursor-pointer"
                                 title="تعديل التفاصيل"
                               >
                                 <Edit2 className="w-3 h-3" />
@@ -212,13 +223,14 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                         })}
                       </div>
 
-                      {/* Add Task Button per cell */}
+                      {/* Add Task / Accomplishment Button per cell */}
                       <button
                         onClick={() => onAddTask(member.id, day.key)}
-                        className="no-print mt-2 w-full py-1.5 px-2 rounded-lg border border-dashed border-cyan-500/20 hover:border-cyan-400 text-cyan-400/60 hover:text-cyan-300 hover:bg-cyan-950/40 text-[11px] font-bold flex items-center justify-center gap-1 opacity-0 group-hover/cell:opacity-100 transition-all"
+                        className="no-print mt-2 w-full py-1.5 px-2 rounded-lg border border-dashed border-cyan-500/30 hover:border-cyan-400 text-cyan-300 bg-cyan-950/20 hover:bg-cyan-950/60 text-[11px] font-bold flex items-center justify-center gap-1 opacity-90 group-hover/cell:opacity-100 transition-all cursor-pointer shadow-sm"
+                        title="إضافة ما تم إنجازه أو مهمة لهذا اليوم"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>إضافة مهمة</span>
+                        <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>إضافة إنجاز اليوم</span>
                       </button>
                     </td>
                   );
@@ -228,7 +240,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 <td
                   onClick={() => onEditOngoingFollowUp(member.id, member.ongoingFollowUp)}
                   className="py-3 px-3 border-cyan-500/15 bg-slate-900/20 align-top text-xs text-cyan-200 font-medium leading-relaxed group/ongoing hover:bg-slate-800/60 transition-colors cursor-pointer"
-                  title="انقر لتعديل المتابعة المستمرة"
+                  title="انقر لتعديل تفاصيل المتابعة"
                 >
                   <div className="relative group/edit">
                     <p className="whitespace-pre-line">{member.ongoingFollowUp || 'انقر لإضافة تفاصيل المتابعة المستمرة...'}</p>
@@ -253,3 +265,4 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     </div>
   );
 };
+

@@ -12,6 +12,8 @@ import { TextEditModal } from './components/TextEditModal';
 import { HistoryModal } from './components/HistoryModal';
 import { TodayStandupView } from './components/TodayStandupView';
 import { MemberSummaryView } from './components/MemberSummaryView';
+import { LoginPage, UserSession } from './components/LoginPage';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { generateSundayToThursdayDays } from './utils/dateUtils';
 import {
   fetchScheduleFromApi,
@@ -26,9 +28,67 @@ import { Database, CheckCircle2 } from 'lucide-react';
 
 const STORAGE_KEY = 'paradise_weekly_team_schedule_v1';
 const HISTORY_STORAGE_KEY = 'paradise_schedule_history_v1';
+const SESSION_STORAGE_KEY = 'paradise_schedule_user_session_v1';
+const PASSWORDS_STORAGE_KEY = 'paradise_schedule_user_passwords_v1';
 
 export default function App() {
   const [isSqliteActive, setIsSqliteActive] = useState(false);
+
+  // User Passwords State
+  const [passwords, setPasswords] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(PASSWORDS_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to parse passwords from storage', e);
+    }
+    return { admin: 'pass@word1' };
+  });
+
+  const handleSavePassword = (targetKey: string, newPass: string) => {
+    setPasswords((prev) => {
+      const updated = { ...prev, [targetKey]: newPass };
+      try {
+        localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save password to localStorage', e);
+      }
+      return updated;
+    });
+  };
+
+  // User Auth Session State
+  const [userSession, setUserSession] = useState<UserSession | null>(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to parse user session', e);
+    }
+    return null;
+  });
+
+  const handleLoginSuccess = (session: UserSession) => {
+    setUserSession(session);
+    try {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    } catch (e) {
+      console.error('Failed to save user session', e);
+    }
+  };
+
+  const handleLogout = () => {
+    setUserSession(null);
+    try {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch (e) {
+      console.error('Failed to clear user session', e);
+    }
+  };
 
   // Load initial schedule data from localStorage or default
   const [scheduleData, setScheduleData] = useState<ScheduleData>(() => {
@@ -72,6 +132,7 @@ export default function App() {
 
   const [isHeaderSettingsOpen, setIsHeaderSettingsOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
   // Dedicated Text Editing Modal state (for ongoing follow-up or main tasks)
   const [textEditContext, setTextEditContext] = useState<{
@@ -507,8 +568,13 @@ export default function App() {
     window.print();
   };
 
+  // Compute visible team members according to user session (Employee sees ONLY themselves)
+  const userScopedTeamMembers = userSession?.role === 'employee'
+    ? scheduleData.teamMembers.filter((m) => m.id === userSession.memberId)
+    : scheduleData.teamMembers;
+
   // Filter team members based on status filter
-  const filteredTeamMembers = scheduleData.teamMembers.map((member) => {
+  const filteredTeamMembers = userScopedTeamMembers.map((member) => {
     if (selectedStatusFilter === 'all') return member;
 
     const filteredTasksByDay: Record<string, DailyTask[]> = {};
@@ -527,6 +593,29 @@ export default function App() {
   const selectedDayLabel = taskModalContext
     ? scheduleData.days.find((d) => d.key === taskModalContext.dayKey)?.labelAr
     : undefined;
+
+  // Render Login Page if user is not authenticated
+  if (!userSession) {
+    return (
+      <>
+        <LoginPage
+          teamMembers={scheduleData.teamMembers}
+          headerData={scheduleData.header}
+          passwords={passwords}
+          onLoginSuccess={handleLoginSuccess}
+          onOpenChangePasswordModal={() => setIsChangePasswordModalOpen(true)}
+        />
+        <ChangePasswordModal
+          isOpen={isChangePasswordModalOpen}
+          onClose={() => setIsChangePasswordModalOpen(false)}
+          userSession={userSession}
+          teamMembers={scheduleData.teamMembers}
+          passwords={passwords}
+          onSavePassword={handleSavePassword}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0b1120] text-slate-100 p-3 sm:p-6 md:p-8 selection:bg-cyan-500 selection:text-black">
@@ -557,6 +646,9 @@ export default function App() {
         <Header
           headerData={scheduleData.header}
           viewMode={viewMode}
+          userSession={userSession}
+          onLogout={handleLogout}
+          onOpenChangePasswordModal={() => setIsChangePasswordModalOpen(true)}
           onViewChange={setViewMode}
           onOpenHeaderSettings={() => setIsHeaderSettingsOpen(true)}
           onOpenAddMemberModal={handleOpenAddMember}
@@ -577,6 +669,7 @@ export default function App() {
               <ScheduleGrid
                 days={scheduleData.days}
                 teamMembers={filteredTeamMembers}
+                userSession={userSession}
                 onAddTask={handleOpenAddTask}
                 onEditTask={handleOpenEditTask}
                 onQuickToggleStatus={handleQuickToggleStatus}
@@ -588,7 +681,7 @@ export default function App() {
 
               <StatsBar
                 days={scheduleData.days}
-                teamMembers={scheduleData.teamMembers}
+                teamMembers={userScopedTeamMembers}
                 selectedStatusFilter={selectedStatusFilter}
                 onStatusFilterChange={setSelectedStatusFilter}
               />
@@ -598,7 +691,7 @@ export default function App() {
           {viewMode === 'standup' && (
             <TodayStandupView
               days={scheduleData.days}
-              teamMembers={scheduleData.teamMembers}
+              teamMembers={userScopedTeamMembers}
               onQuickToggleStatus={handleQuickToggleStatus}
               onAddTask={handleOpenAddTask}
             />
@@ -607,7 +700,7 @@ export default function App() {
           {viewMode === 'members' && (
             <MemberSummaryView
               days={scheduleData.days}
-              teamMembers={scheduleData.teamMembers}
+              teamMembers={userScopedTeamMembers}
               onEditMember={handleOpenEditMember}
               onAddTask={handleOpenAddTask}
               onQuickToggleStatus={handleQuickToggleStatus}
@@ -618,7 +711,7 @@ export default function App() {
             <div className="space-y-6">
               <StatsBar
                 days={scheduleData.days}
-                teamMembers={scheduleData.teamMembers}
+                teamMembers={userScopedTeamMembers}
                 selectedStatusFilter={selectedStatusFilter}
                 onStatusFilterChange={setSelectedStatusFilter}
               />
@@ -626,6 +719,7 @@ export default function App() {
               <ScheduleGrid
                 days={scheduleData.days}
                 teamMembers={filteredTeamMembers}
+                userSession={userSession}
                 onAddTask={handleOpenAddTask}
                 onEditTask={handleOpenEditTask}
                 onQuickToggleStatus={handleQuickToggleStatus}
@@ -693,6 +787,16 @@ export default function App() {
         onDeleteArchivedWeek={handleDeleteArchivedWeek}
         onStartNewWeek={handleStartNewWeek}
         currentScheduleData={scheduleData}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordModalOpen}
+        onClose={() => setIsChangePasswordModalOpen(false)}
+        userSession={userSession}
+        teamMembers={scheduleData.teamMembers}
+        passwords={passwords}
+        onSavePassword={handleSavePassword}
       />
     </div>
   );
