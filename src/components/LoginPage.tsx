@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, User, ShieldCheck, Sparkles, AlertCircle, ArrowLeft, KeyRound, UserCheck } from 'lucide-react';
 import { TeamMember, ScheduleHeader } from '../types';
+import { DEFAULT_PASSWORDS } from '../services/firestoreService';
 
 export interface UserSession {
   role: 'admin' | 'employee';
@@ -48,21 +49,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         return;
       }
 
-      const savedPass = passwords[member.id] || passwords['employee'];
+      const expectedPass = passwords[member.id] || DEFAULT_PASSWORDS[member.id] || 'm123';
       const inputPass = passwordInput.trim();
 
-      const validPasswords = [
-        savedPass,
-        'pass@word1',
-        'pass@word',
-        'admin123',
-        '123456',
-        'm123',
-        `${member.id}123`,
-      ].filter(Boolean);
-
-      if (!validPasswords.includes(inputPass)) {
-        setErrorMsg('كلمة المرور غير صحيحة. كلمة المرور الافتراضية هي pass@word1 أو admin123');
+      if (inputPass !== expectedPass) {
+        setErrorMsg('كلمة المرور غير صحيحة.');
         return;
       }
 
@@ -73,20 +64,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       });
     } else {
       // Admin Login
-      const savedAdminPass = passwords['admin'];
+      const expectedAdminPass = passwords['admin'] || DEFAULT_PASSWORDS['admin'] || 'admin123';
       const inputPass = passwordInput.trim();
 
-      const validAdminPasswords = [
-        savedAdminPass,
-        'pass@word1',
-        'pass@word',
-        'admin123',
-        'admin',
-        '123456',
-      ].filter(Boolean);
-
-      if (!validAdminPasswords.includes(inputPass)) {
-        setErrorMsg('كلمة مرور مدير النظام غير صحيحة. كلمة المرور الافتراضية هي admin123 أو pass@word1');
+      if (inputPass !== expectedAdminPass) {
+        setErrorMsg('كلمة مرور مدير النظام غير صحيحة.');
         return;
       }
 
@@ -225,7 +207,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <div className="flex items-center justify-between text-[11px] text-cyan-400/70 mt-1.5">
                 <p className="flex items-center gap-1">
                   <Lock className="w-3 h-3" />
-                  <span>كلمة المرور الافتراضية: <code className="bg-slate-950 px-1.5 py-0.5 rounded text-cyan-300 font-mono text-[11px]">pass@word1</code> أو <code className="bg-slate-950 px-1.5 py-0.5 rounded text-cyan-300 font-mono text-[11px]">admin123</code></span>
+                  <span>كلمة المرور الافتراضية: <code className="bg-slate-950 px-1.5 py-0.5 rounded text-cyan-300 font-mono text-[11px]">{loginType === 'admin' ? 'admin123' : 'm123'}</code></span>
                 </p>
                 <button
                   type="button"

@@ -188,17 +188,15 @@ export default function App() {
   };
 
   const updateAndSyncPasswords = (updater: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => {
-    setPasswords((prev) => {
-      const nextData = typeof updater === 'function' ? updater(prev) : updater;
-      passwordsRef.current = nextData;
-      savePasswordsToFirestore(nextData);
-      try {
-        localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(nextData));
-      } catch (e) {
-        console.error('Failed to set localStorage passwords', e);
-      }
-      return nextData;
-    });
+    const nextData = typeof updater === 'function' ? updater(passwordsRef.current) : updater;
+    passwordsRef.current = nextData;
+    setPasswords(nextData);
+    try {
+      localStorage.setItem(PASSWORDS_STORAGE_KEY, JSON.stringify(nextData));
+    } catch (e) {
+      console.error('Failed to set localStorage passwords', e);
+    }
+    savePasswordsToFirestore(nextData);
   };
 
   // Real-time Cloud Firestore Subscriptions for Live Sync Across Devices

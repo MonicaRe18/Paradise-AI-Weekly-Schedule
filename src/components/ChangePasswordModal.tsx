@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { KeyRound, Lock, Check, AlertCircle, X, ShieldCheck, User } from 'lucide-react';
+import { KeyRound, Lock, Check, AlertCircle, X, User } from 'lucide-react';
 import { UserSession } from './LoginPage';
 import { TeamMember } from '../types';
+import { DEFAULT_PASSWORDS } from '../services/firestoreService';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -22,8 +23,11 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const isAdmin = userSession?.role === 'admin';
-  const defaultTargetKey = userSession?.role === 'employee' ? (userSession.memberId || 'employee') : 'admin';
+  const isLoggedInAdmin = userSession?.role === 'admin';
+  const isLoggedInEmployee = userSession?.role === 'employee';
+  const isLoggedOut = !userSession;
+
+  const defaultTargetKey = isLoggedInEmployee ? (userSession.memberId || 'm1') : 'admin';
 
   const [targetUserKey, setTargetUserKey] = useState<string>(defaultTargetKey);
   const [currentPasswordInput, setCurrentPasswordInput] = useState('');
@@ -37,39 +41,32 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
 
-    const targetKey = isAdmin ? targetUserKey : defaultTargetKey;
-    const existingPassword = passwords[targetKey] || 'pass@word1';
+    const targetKey = isLoggedInEmployee ? (userSession.memberId || 'm1') : targetUserKey;
+    const existingPassword = passwords[targetKey] || DEFAULT_PASSWORDS[targetKey] || (targetKey === 'admin' ? 'admin123' : 'm123');
 
-    // Non-admin changing their own password must provide correct current password
-    if (!isAdmin) {
+    // Current password verification is required UNLESS logged in as Admin
+    if (!isLoggedInAdmin) {
       const inputCurrent = currentPasswordInput.trim();
-      const validCurrents = [
-        existingPassword,
-        'pass@word1',
-        'pass@word',
-        'admin123',
-        '123456',
-        'm123',
-      ].filter(Boolean);
-
-      if (!validCurrents.includes(inputCurrent)) {
+      if (inputCurrent !== existingPassword) {
         setErrorMsg('كلمة المرور الحالية غير صحيحة');
         return;
       }
     }
 
-    if (!newPasswordInput || newPasswordInput.length < 4) {
-      setErrorMsg('كلمة المرور الجديدة يجب أن تحتوي على 4 خانات على الأقل');
+    const cleanNewPass = newPasswordInput.trim();
+
+    if (!cleanNewPass || cleanNewPass.length < 3) {
+      setErrorMsg('كلمة المرور الجديدة يجب أن تحتوي على 3 خانات على الأقل');
       return;
     }
 
-    if (newPasswordInput !== confirmPasswordInput) {
+    if (cleanNewPass !== confirmPasswordInput.trim()) {
       setErrorMsg('كلمة المرور الجديدة غير متطابقة مع التأكيد');
       return;
     }
 
-    onSavePassword(targetKey, newPasswordInput);
-    setSuccessMsg('تم تغيير كلمة المرور بنجاح!');
+    onSavePassword(targetKey, cleanNewPass);
+    setSuccessMsg('تم تغيير كلمة المرور بنجاح وتحديثها في النظام!');
     setCurrentPasswordInput('');
     setNewPasswordInput('');
     setConfirmPasswordInput('');
@@ -103,8 +100,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
         </div>
 
         <form onSubmit={handleSave} className="space-y-4">
-          {/* Target user selector for Admin */}
-          {isAdmin && (
+          {/* Target user selector for Admin or when opened from Login screen */}
+          {(isLoggedInAdmin || isLoggedOut) && (
             <div>
               <label className="block text-xs font-bold text-cyan-200 mb-1.5 flex items-center gap-1.5">
                 <User className="w-4 h-4 text-cyan-400" />
@@ -131,8 +128,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             </div>
           )}
 
-          {/* Current Password (required if not admin) */}
-          {!isAdmin && (
+          {/* Current Password (required if not logged in as Admin) */}
+          {!isLoggedInAdmin && (
             <div>
               <label className="block text-xs font-bold text-cyan-200 mb-1.5 flex items-center gap-1.5">
                 <Lock className="w-4 h-4 text-cyan-400" />
